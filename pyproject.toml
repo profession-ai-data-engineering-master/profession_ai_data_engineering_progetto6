@@ -1,0 +1,22 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Rende importabile il package dalla root, a prescindere da come si invoca
+# pytest (`pytest` o `python -m pytest`).
+pythonpath = ["."]
+addopts = "--cov=preprocessing --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["preprocessing"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["preprocessing"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+ignore_missing_imports = true
