@@ -1,0 +1,13 @@
+-r requirements.txt
+
+# Lint e formattazione
+ruff
+
+# Type checking
+mypy
+pandas-stubs
+
+# Test
+pytest
+pytest-cov
+hypothesis

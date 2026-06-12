@@ -1,56 +1,90 @@
-# Pre-processing di un Dataset di Rilevazione del Tumore al Seno
+# Pre-processing & Feature Engineering — Breast Cancer Wisconsin
 
-**Dataset**: [Breast Cancer Wisconsin (Diagnostic) Data Set](https://www.kaggle.com/datasets/tunguz/breast-cancer-wisconsin-diagnostic-data)
+![CI](https://github.com/profession-ai-data-engineering-master/profession_ai_data_engineering_progetto6/actions/workflows/ci.yml/badge.svg)
 
-## Contesto del Progetto
+Libreria scikit-learn che costruisce, a partire da un dataset clinico grezzo, un unico
+oggetto di preprocessing riutilizzabile: tre pipeline complementari unite in un dataset
+*max-feature*. Progetto 6 del Master in Data Engineering di ProfessionAI.
 
-Nel settore sanitario si utilizzano sempre più dati per prendere decisioni informate. Il presente progetto riguarda un dataset di rilevazione del tumore al seno, con l'obiettivo di creare un set di dati pulito e pronto per essere utilizzato nei modelli di machine learning. La pulizia e l'organizzazione dei dati sono fondamentali per migliorare la qualità e le performance dei modelli.
+> **Dataset**: [Breast Cancer Wisconsin (Diagnostic)](https://www.kaggle.com/datasets/tunguz/breast-cancer-wisconsin-diagnostic-data) —
+> 569 record, 30 feature (29 numeriche + 1 categorica `A/B/C`), target binario benigno/maligno,
+> con valori mancanti diffusi.
 
-## Obiettivo del Progetto
+Il notebook originale di consegna (`profession_ai_data_engineering_progetto6.ipynb`) è
+conservato come artefatto del corso; **il prodotto è questo package**, che ne porta i due
+transformer custom allo standard di una libreria testata, tipizzata e in CI.
 
-L'obiettivo è ottenere un unico oggetto finale che racchiuda tutte le fasi di preprocessing applicabili a tutte le colonne del dataset, eccetto la colonna target. Ciò consente di avere un workflow strutturato e riutilizzabile per la preparazione dei dati prima dell'addestramento del modello. L'utilizzo di un unico oggetto facilita il tracciamento e la riproducibilità del processo di preprocessing.
+## Il problema
 
-## Valore Aggiunto
+L'obiettivo della consegna è ottenere un **unico oggetto** che racchiuda tutte le fasi di
+preprocessing applicabili a tutte le colonne (target escluso), componendo tre pipeline:
 
-* Automazione e scalabilità: Le pipeline garantiscono un processo automatizzato e replicabile su nuovi dataset, riducendo i tempi di preparazione del dataset.
-* Ottimizzazione della qualità dei dati: Grazie alla pulizia dei dati e alla gestione delle anomalie, la qualità del dataset sarà migliorata, portando a modelli più robusti.
-* Personalizzazione delle tecniche di pre-processing: Le pipeline offrono flessibilità nell'applicazione di tecniche avanzate come l'analisi della skewness, la PCA (Principal Component Analysis) e la selezione delle variabili più informative.
+| Pipeline | Ambito | Passi |
+|----------|--------|-------|
+| **1** | addestrata sui soli record positivi (target=1) | imputazione selettiva (media/mediana per simmetria) → simmetrizzazione (Yeo-Johnson) → one-hot encoding → standardizzazione |
+| **2** | tutti i record | imputazione selettiva → discretizzazione in 20 bin → encoding ordinale → selezione delle 5 feature più informative (ANOVA F) |
+| **3** | solo variabili numeriche | imputazione selettiva → PCA (85% di varianza) → simmetrizzazione → normalizzazione |
 
-## Descrizione delle Pipeline
+Le tre pipeline confluiscono in un `FeatureUnion` (il dataset *max-feature*), pronto come input
+per l'addestramento di un modello.
 
-### Pipeline 1: Pre-processing per Record con Target = 1
+## Architettura
 
-(Questa pipeline si concentra sui soli record in cui il target è pari a 1, ovvero i casi positivi di rilevazione del tumore. La pipeline include:)
+Due transformer custom (estensioni dell'API `BaseEstimator`/`TransformerMixin`) coprono la
+logica che le primitive scikit-learn non offrono nativamente:
 
-1. Pulizia dei valori mancanti: La pulizia sarà distinta tra variabili asimmetriche e variabili simmetriche; per queste ultime si opterà per metodi di riempimento più standard.
-2. Simmetrizzazione delle variabili asimmetriche: Per garantire una distribuzione più bilanciata dei dati, si procederà alla simmetrizzazione mediante tecniche appropriate.
-3. One-Hot Encoding delle variabili categoriche: Tutte le variabili categoriche verranno convertite in formato one-hot encoding, rendendo i dati utilizzabili dal modello di machine learning.
-4. Riscalatura mediante Standardizzazione: Le variabili numeriche saranno portate a una distribuzione con media zero e deviazione standard pari a uno.
+- **`PipelineWithRowFilter`** — addestra una pipeline interna su un sottoinsieme di record
+  selezionato dal target, ma trasforma *tutte* le righe.
+- **`SelectiveTransformerBySkewness`** — applica un transformer solo alle colonne numeriche
+  selezionate per asimmetria (skewness), lasciando invariate le altre.
 
-Questa pipeline fornisce un trattamento ottimale dei record positivi, migliorando la coerenza e la qualità del dataset su cui verranno effettuate le analisi.
+```
+preprocessing/
+├── transformers.py   # i due transformer custom
+├── pipelines.py      # build_pipeline_1/2/3 + build_full_pipeline
+├── data.py           # load_dataset() + split_features_target()
+├── plotting.py       # plot_distribution() (analisi skewness)
+└── __main__.py       # demo end-to-end: python -m preprocessing
+```
 
-### Pipeline 2: Pre-processing per Tutti i Record del Dataset
+## Scelte di design rilevanti
 
-(Questa pipeline sarà applicata a tutti i record del dataset, con l'obiettivo di trasformare tutte le variabili numeriche e categoriche attraverso i seguenti passaggi:)
+- **Pipeline 1, semantica "fit sui positivi, transform su tutti".** La pipeline *apprende* i
+  parametri esclusivamente dai record positivi (evita che i negativi contaminino media e
+  scala), ma li *applica* a tutte le righe. Ne consegue un dataset finale **senza NaN
+  strutturali** e l'invariante `fit_transform(X, y) == fit(X, y).transform(X)`.
+- **Skewness rivalutata per step** (scelta intenzionale): l'imputazione sceglie media vs
+  mediana sulla skewness del dato *grezzo* (la mediana è robusta sulle code), mentre la
+  simmetrizzazione agisce sulle colonne ancora asimmetriche *dopo* l'imputazione.
+- **Robustezza ai casi degeneri**: colonne costanti o quasi tutte NaN (skewness indefinita)
+  vengono comunque imputate; categorie mai viste in inferenza non fanno fallire l'encoding;
+  i nomi delle feature sono unici e propagati end-to-end (`get_feature_names_out`).
 
-1. Pulizia dei valori mancanti: Verrà adottata una strategia personalizzata per pulire i valori mancanti in modo coerente con la natura delle variabili.
-2. Discretizzazione a 20 bin delle variabili numeriche: Le variabili numeriche verranno discretizzate in 20 bin per ridurre la complessità del dato e facilitare l'analisi.
-3. Encoding ordinale delle variabili categoriche: Le variabili categoriche saranno codificate in base a un ordine crescente (A, B, C), mantenendo il valore semantico delle categorie.
-4. Selezione delle 5 variabili più informative: Al termine della trasformazione verranno selezionate le 5 variabili più significative, migliorando così efficienza e precisione del modello successivo.
+## Uso
 
-### Pipeline 3: Pre-processing delle Variabili Numeriche
+```bash
+pip install -r requirements.txt
 
-(Questa pipeline è focalizzata sulle variabili numeriche del dataset e prevede i seguenti passaggi:)
+python -m preprocessing      # scarica il dataset, addestra la full pipeline, salva il .joblib
+```
 
-1. Pulizia dei valori mancanti: Come nelle pipeline precedenti, verrà adottato un metodo personalizzato per pulire i valori mancanti delle variabili numeriche.
-2. Principal Component Analysis (PCA): Verrà applicata la Principal Component Analysis per ridurre il rumore e migliorare le prestazioni del modello.
-3. Simmetrizzazione: Come nella pipeline 1, si procederà alla simmetrizzazione delle variabili asimmetriche per migliorare la distribuzione dei dati.
-4. Riscalatura mediante normalizzazione: Infine, le variabili numeriche saranno normalizzate su una scala standard per facilitare il processo di apprendimento del modello.
+```python
+from preprocessing import load_dataset, split_features_target, build_full_pipeline
 
-## Risultato Finale
+X, y = split_features_target(load_dataset())
+pipeline = build_full_pipeline()
+features = pipeline.fit_transform(X, y)   # DataFrame pronto per il modello
+```
 
-Al termine di tutte queste pipeline, verrà creato un oggetto finale che semplificherà la gestione del dataset complesso e l'addestramento di un modello robusto.
+## Qualità
 
-## Conclusione
+- **Test**: `pytest` con oracoli espliciti e proprietà ([Hypothesis](https://hypothesis.readthedocs.io/))
+  sui transformer — coverage ~97%.
+- **Lint & formato**: [ruff](https://docs.astral.sh/ruff/).
+- **Type checking**: [mypy](https://mypy-lang.org/) con type hints completi.
+- **CI**: GitHub Actions esegue lint, format-check, mypy e test a ogni push/PR.
 
-La pipeline di pre-processing proposta non solo migliora la qualità dei dati, ma ottimizza anche il flusso di lavoro aziendale, dando un contributo significativo all'accuratezza delle previsioni sul tumore al seno.
+```bash
+pip install -r requirements-dev.txt
+ruff check . && ruff format --check . && mypy preprocessing && pytest
+```

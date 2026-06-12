@@ -1,0 +1,10 @@
+line-length = 100
+# Il notebook è l'artefatto di consegna, non codice del package: fuori dal lint.
+extend-exclude = ["*.ipynb"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "N"]
+
+[lint.pep8-naming]
+# `X` (matrice delle feature) e `X_*` seguono la convenzione scikit-learn.
+extend-ignore-names = ["X", "X_*"]
