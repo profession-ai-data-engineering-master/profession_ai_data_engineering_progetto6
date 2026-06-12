@@ -10,23 +10,86 @@ oggetto di preprocessing riutilizzabile: tre pipeline complementari unite in un 
 > 569 record, 30 feature (29 numeriche + 1 categorica `A/B/C`), target binario benigno/maligno,
 > con valori mancanti diffusi.
 
-Il notebook originale di consegna (`profession_ai_data_engineering_progetto6.ipynb`) è
-conservato come artefatto del corso; **il prodotto è questo package**, che ne porta i due
-transformer custom allo standard di una libreria testata, tipizzata e in CI.
+Lo svolgimento originale era un notebook Colab; **il prodotto è questo package**, che ne
+riprende i due transformer scikit-learn custom portandoli allo standard di una libreria
+testata, tipizzata e in CI.
 
-## Il problema
+## La consegna
 
-L'obiettivo della consegna è ottenere un **unico oggetto** che racchiuda tutte le fasi di
-preprocessing applicabili a tutte le colonne (target escluso), componendo tre pipeline:
+Testo della consegna del corso, riportato fedelmente.
 
-| Pipeline | Ambito | Passi |
-|----------|--------|-------|
-| **1** | addestrata sui soli record positivi (target=1) | imputazione selettiva (media/mediana per simmetria) → simmetrizzazione (Yeo-Johnson) → one-hot encoding → standardizzazione |
-| **2** | tutti i record | imputazione selettiva → discretizzazione in 20 bin → encoding ordinale → selezione delle 5 feature più informative (ANOVA F) |
-| **3** | solo variabili numeriche | imputazione selettiva → PCA (85% di varianza) → simmetrizzazione → normalizzazione |
+### Contesto del progetto
 
-Le tre pipeline confluiscono in un `FeatureUnion` (il dataset *max-feature*), pronto come input
-per l'addestramento di un modello.
+Nel settore sanitario si utilizzano sempre più dati per prendere decisioni informate. Il
+presente progetto riguarda un dataset di rilevazione del tumore al seno, con l'obiettivo di
+creare un set di dati pulito e pronto per essere utilizzato nei modelli di machine learning.
+La pulizia e l'organizzazione dei dati sono fondamentali per migliorare la qualità e le
+performance dei modelli.
+
+### Obiettivo del progetto
+
+L'obiettivo è ottenere un unico oggetto finale che racchiuda tutte le fasi di preprocessing
+applicabili a tutte le colonne del dataset, eccetto la colonna target. Ciò consente di avere
+un workflow strutturato e riutilizzabile per la preparazione dei dati prima dell'addestramento
+del modello. L'utilizzo di un unico oggetto facilita il tracciamento e la riproducibilità del
+processo di preprocessing.
+
+### Valore aggiunto
+
+* **Automazione e scalabilità**: le pipeline garantiscono un processo automatizzato e
+  replicabile su nuovi dataset, riducendo i tempi di preparazione del dataset.
+* **Ottimizzazione della qualità dei dati**: grazie alla pulizia dei dati e alla gestione delle
+  anomalie, la qualità del dataset sarà migliorata, portando a modelli più robusti.
+* **Personalizzazione delle tecniche di pre-processing**: le pipeline offrono flessibilità
+  nell'applicazione di tecniche avanzate come l'analisi della skewness, la PCA (Principal
+  Component Analysis) e la selezione delle variabili più informative.
+
+### Descrizione delle pipeline
+
+**Pipeline 1 — Pre-processing per record con target = 1.** Si concentra sui soli record in cui
+il target è pari a 1, ovvero i casi positivi di rilevazione del tumore. La pipeline include:
+
+1. **Pulizia dei valori mancanti**: distinta tra variabili asimmetriche e simmetriche; per
+   queste ultime si opta per metodi di riempimento più standard.
+2. **Simmetrizzazione delle variabili asimmetriche**: per garantire una distribuzione più
+   bilanciata dei dati, mediante tecniche appropriate.
+3. **One-Hot Encoding delle variabili categoriche**: tutte le variabili categoriche vengono
+   convertite in formato one-hot encoding, rendendo i dati utilizzabili dal modello.
+4. **Riscalatura mediante Standardizzazione**: le variabili numeriche sono portate a una
+   distribuzione con media zero e deviazione standard pari a uno.
+
+**Pipeline 2 — Pre-processing per tutti i record del dataset.** Applicata a tutti i record, con
+l'obiettivo di trasformare tutte le variabili numeriche e categoriche:
+
+1. **Pulizia dei valori mancanti**: strategia personalizzata, coerente con la natura delle
+   variabili.
+2. **Discretizzazione a 20 bin delle variabili numeriche**: per ridurre la complessità del dato
+   e facilitare l'analisi.
+3. **Encoding ordinale delle variabili categoriche**: codifica in base a un ordine crescente
+   (A, B, C), mantenendo il valore semantico delle categorie.
+4. **Selezione delle 5 variabili più informative**: al termine della trasformazione, per
+   migliorare efficienza e precisione del modello successivo.
+
+**Pipeline 3 — Pre-processing delle variabili numeriche.** Focalizzata sulle sole variabili
+numeriche:
+
+1. **Pulizia dei valori mancanti**: come nelle pipeline precedenti, con metodo personalizzato.
+2. **Principal Component Analysis (PCA)**: per ridurre il rumore e migliorare le prestazioni del
+   modello.
+3. **Simmetrizzazione**: come nella Pipeline 1, delle variabili asimmetriche.
+4. **Riscalatura mediante normalizzazione**: le variabili numeriche sono normalizzate su una
+   scala standard per facilitare il processo di apprendimento.
+
+### Risultato finale
+
+Al termine di tutte queste pipeline viene creato un oggetto finale che semplifica la gestione del
+dataset complesso e l'addestramento di un modello robusto.
+
+### Conclusione
+
+La pipeline di pre-processing proposta non solo migliora la qualità dei dati, ma ottimizza anche
+il flusso di lavoro aziendale, dando un contributo significativo all'accuratezza delle previsioni
+sul tumore al seno.
 
 ## Architettura
 
